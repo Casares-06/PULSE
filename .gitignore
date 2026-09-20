@@ -1,0 +1,12 @@
+.venv/
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.streamlit/secrets.toml
+data/raw/*.zip
+data/processed/*.parquet
+data/processed/*.json
+outputs/tables/*.csv
+outputs/charts/*
+!.gitkeep
