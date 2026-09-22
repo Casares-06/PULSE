@@ -40,7 +40,9 @@ pnpm build
 ## Funciones
 
 - Portada personal con minutos, horas, récords y evolución.
+- Portada narrativa con escenas audiovisuales locales y animaciones accesibles.
 - Rankings completos de artistas, canciones y álbumes.
+- Gráficos interactivos, podios y selección de unidades y tamaños de ranking.
 - Comparación anual y series diarias, mensuales y anuales.
 - Mapa de calor por día y hora, plataformas, países y comportamiento.
 - Sesiones aproximadas, días activos y rachas consecutivas.
@@ -48,6 +50,7 @@ pnpm build
 - Estadísticas independientes para podcasts.
 - Buscador de reproducciones y exportación de resultados.
 - Auditoría de duplicados, cobertura y fechas del archivo.
+- Apartado de información con funcionamiento, metodología, privacidad y autoría.
 
 ## Versión Python local
 

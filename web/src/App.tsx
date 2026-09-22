@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import {
   Activity,
+  ArrowDown,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
   Flame,
   Headphones,
   History,
+  Info,
   ListMusic,
   LockKeyhole,
   Music2,
@@ -36,7 +38,7 @@ import {
 import { processSpotifyExport } from "./spotify";
 import type { ImportResult, Play, RankingRow } from "./types";
 
-type Page = "Resumen" | "Rankings" | "Historia" | "Hábitos" | "Sesiones" | "Descubrimiento" | "Podcasts" | "Explorar" | "Calidad";
+type Page = "Resumen" | "Rankings" | "Historia" | "Hábitos" | "Sesiones" | "Descubrimiento" | "Podcasts" | "Explorar" | "Calidad" | "Información";
 
 const pages: { name: Page; icon: typeof Activity }[] = [
   { name: "Resumen", icon: Activity },
@@ -48,6 +50,7 @@ const pages: { name: Page; icon: typeof Activity }[] = [
   { name: "Podcasts", icon: Podcast },
   { name: "Explorar", icon: Search },
   { name: "Calidad", icon: ShieldCheck },
+  { name: "Información", icon: Info },
 ];
 
 const number = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
@@ -74,18 +77,133 @@ function Stat({ label, value, hint, icon }: { label: string; value: string; hint
 }
 
 function MiniBars({ data, labels = true }: { data: { label: string; value: number }[]; labels?: boolean }) {
+  const [unit, setUnit] = useState<"minutes" | "hours">("minutes");
+  const [selected, setSelected] = useState<number | null>(null);
   const visible = data.slice(-18);
   const max = Math.max(...visible.map((point) => point.value), 1);
+  const active = selected === null ? null : visible[selected];
+  const displayValue = (value: number) => unit === "hours" ? `${decimal.format(value / 60)} h` : `${number.format(value)} min`;
   return (
-    <div className="mini-chart" role="img" aria-label="Gráfico de minutos escuchados">
-      {visible.map((point) => (
-        <div className="mini-column" key={point.label} title={`${point.label}: ${decimal.format(point.value)} min`}>
-          <span className="bar-value">{point.value > max * 0.35 ? number.format(point.value) : ""}</span>
-          <div className="bar" style={{ height: `${Math.max(3, (point.value / max) * 100)}%` }} />
-          {labels && <small>{point.label.length > 7 ? point.label.slice(2) : point.label}</small>}
-        </div>
-      ))}
+    <div className="chart-shell">
+      <div className="chart-controls" aria-label="Unidad del gráfico">
+        <button className={unit === "minutes" ? "active" : ""} onClick={() => setUnit("minutes")}>Min</button>
+        <button className={unit === "hours" ? "active" : ""} onClick={() => setUnit("hours")}>Horas</button>
+        <span>{active ? <><strong>{active.label}</strong> · {displayValue(active.value)}</> : "Pulsa una barra para ver el detalle"}</span>
+      </div>
+      <div className="mini-chart" role="group" aria-label="Gráfico interactivo de tiempo escuchado">
+        {visible.map((point, index) => (
+          <button
+            type="button"
+            className={`mini-column ${selected === index ? "selected" : ""}`}
+            key={point.label}
+            title={`${point.label}: ${displayValue(point.value)}`}
+            aria-label={`${point.label}: ${displayValue(point.value)}`}
+            onClick={() => setSelected(selected === index ? null : index)}
+          >
+            <span className="bar-value">{point.value > max * 0.35 ? displayValue(point.value) : ""}</span>
+            <span className="bar" style={{ height: `${Math.max(3, (point.value / max) * 100)}%`, animationDelay: `${index * 35}ms` }} />
+            {labels && <small>{point.label.length > 7 ? point.label.slice(2) : point.label}</small>}
+          </button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function Podium({ rows, title }: { rows: RankingRow[]; title: string }) {
+  const positions = [rows[1], rows[0], rows[2]];
+  return (
+    <section className="podium-panel">
+      <span className="kicker">Podio</span>
+      <h2>{title}</h2>
+      <div className="podium">
+        {positions.map((row, index) => row && (
+          <article className={`podium-place place-${index}`} key={row.key}>
+            <div className="podium-medal">{index === 1 ? "1" : index === 0 ? "2" : "3"}</div>
+            <strong>{row.name}</strong>
+            {row.secondary && <small>{row.secondary}</small>}
+            <span>{formatMinutes(row.minutes)}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const storyScenes = [
+  { eyebrow: "01 · Ritmo", title: "Cada escucha deja una señal", copy: "PULSE convierte años de reproducciones en una historia que puedes recorrer, comparar y entender." },
+  { eyebrow: "02 · Memoria", title: "Tus etapas vuelven a sonar", copy: "Descubre qué artistas marcaron cada año, cuándo cambió tu gusto y cuáles fueron tus días más intensos." },
+  { eyebrow: "03 · Control", title: "Tu historia se queda contigo", copy: "Todo el análisis ocurre en este navegador. Sin cuentas, rastreadores, servidores de datos ni letra pequeña." },
+];
+
+function CinematicStory() {
+  const [active, setActive] = useState(0);
+  const items = useRef<Array<HTMLElement | null>>([]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActive(Number((visible.target as HTMLElement).dataset.scene));
+    }, { threshold: [0.35, 0.65], rootMargin: "-15% 0px -20%" });
+    items.current.forEach((item) => item && observer.observe(item));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section className="cinematic-story" id="descubrir">
+      <div className={`story-visual scene-${active}`} aria-hidden="true">
+        <div className="stage-light stage-light-a" />
+        <div className="stage-light stage-light-b" />
+        <div className="visual-disc"><Disc3 /></div>
+        <div className="visual-equalizer">{Array.from({ length: 24 }, (_, index) => <i key={index} style={{ animationDelay: `${index * -90}ms` }} />)}</div>
+        <div className="scene-counter">0{active + 1}<span>/ 03</span></div>
+        <p>{active === 0 ? "RITMO" : active === 1 ? "MEMORIA" : "PRIVACIDAD"}</p>
+      </div>
+      <div className="story-copy-list">
+        {storyScenes.map((scene, index) => (
+          <article
+            className={active === index ? "active" : ""}
+            data-scene={index}
+            key={scene.title}
+            ref={(node) => { items.current[index] = node; }}
+          >
+            <span>{scene.eyebrow}</span>
+            <h2>{scene.title}</h2>
+            <p>{scene.copy}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InformationContent({ landing = false }: { landing?: boolean }) {
+  return (
+    <section className={landing ? "landing-information" : "information-page"} id={landing ? "informacion" : undefined}>
+      <div className="information-heading">
+        <span className="kicker">Información</span>
+        <h2>Tu historial musical, explicado con claridad.</h2>
+        <p>PULSE es una herramienta gratuita que transforma la exportación ampliada de Spotify en estadísticas privadas y comprensibles.</p>
+      </div>
+      <div className="steps-grid">
+        <article><span>01</span><h3>Descarga</h3><p>Solicita a Spotify tu historial ampliado y conserva el ZIP original.</p></article>
+        <article><span>02</span><h3>Selecciona</h3><p>Abre el archivo directamente en PULSE, sin descomprimirlo ni enviarlo.</p></article>
+        <article><span>03</span><h3>Explora</h3><p>Consulta minutos reales, rankings, hábitos, sesiones y evolución.</p></article>
+      </div>
+      <div className="information-grid">
+        <article className="privacy-manifesto">
+          <ShieldCheck />
+          <span className="kicker">Privacidad verificable</span>
+          <h3>Ni nosotros vemos tu archivo.</h3>
+          <p>El ZIP se procesa en la memoria de tu navegador. No hay cuentas, analítica, cookies ni almacenamiento del historial. Al cerrar o recargar la pestaña, desaparece.</p>
+        </article>
+        <article className="creator-card">
+          <div className="creator-avatar">IC</div>
+          <div><span className="kicker">Creador</span><h3>Iñigo Casares</h3><p>PULSE nace para que cualquier persona pueda entender su historia musical completa sin entregar sus datos a otra plataforma.</p></div>
+        </article>
+      </div>
+      <p className="accuracy-note"><Info /> Los minutos se calculan con el campo real <code>ms_played</code>. Una reproducción se considera stream cuando alcanza 30 segundos, pero el tiempo completo siempre se conserva.</p>
+    </section>
   );
 }
 
@@ -126,10 +244,12 @@ function UploadScreen({ onFile, busy, progress, error }: { onFile: (file: File) 
   return (
     <main className="welcome-shell">
       <header className="welcome-header">
-        <div className="brand"><span className="brand-mark"><img src={logoUrl} alt="" /></span><strong>PULSE</strong></div>
-        <div className="privacy-pill"><LockKeyhole size={15} /> Sin cuentas · Sin servidores · 0 €</div>
+        <a className="brand" href="#inicio" aria-label="PULSE, volver al inicio"><span className="brand-mark"><img src={logoUrl} alt="" /></span><strong>PULSE</strong></a>
+        <nav className="landing-nav" aria-label="Navegación principal"><a href="#descubrir">Descubrir</a><a href="#informacion">Información</a></nav>
+        <div className="privacy-pill"><LockKeyhole size={15} /> Privado · Local · 0 €</div>
       </header>
-      <section className="welcome-grid">
+      <section className="welcome-grid" id="inicio">
+        <div className="hero-ambient" aria-hidden="true"><i /><i /><i /></div>
         <div className="intro-copy">
           <div className="eyebrow"><Sparkles size={15} /> Tu historial, bajo tu control</div>
           <h1>Todo lo que Spotify sabe de tu música. <em>Solo para ti.</em></h1>
@@ -154,6 +274,14 @@ function UploadScreen({ onFile, busy, progress, error }: { onFile: (file: File) 
           <small className="local-note"><LockKeyhole size={13} /> Procesamiento 100 % local · Límite seguro: 250 MB</small>
           {error && <div className="error-box" role="alert">{error}</div>}
         </div>
+        <a className="scroll-cue" href="#descubrir"><span>Descubre PULSE</span><ArrowDown /></a>
+      </section>
+      <CinematicStory />
+      <InformationContent landing />
+      <section className="final-cta">
+        <span className="kicker">Tu historia está en el ZIP</span>
+        <h2>¿Preparado para escuchar tus datos?</h2>
+        <button className="primary-button" onClick={() => input.current?.click()}><UploadCloud /> Seleccionar mi archivo</button>
       </section>
       <footer className="welcome-footer"><span>Creado por <strong>Iñigo Casares</strong></span><span>Código abierto, cálculos transparentes y ningún rastreador.</span></footer>
     </main>
@@ -173,6 +301,7 @@ function Overview({ plays }: { plays: Play[] }) {
         <div><span>Tu universo sonoro</span><h1>{number.format(sumMinutes(plays))} <em>minutos</em></h1><p>Entre {compactDate.format(plays[0].at)} y {compactDate.format(plays.at(-1)!.at)}</p></div>
         <div className="pulse-disc"><Disc3 /><span>{plays.at(-1)!.year}</span></div>
       </section>
+      <div className="artist-marquee" aria-label="Artistas más escuchados"><div>{[...artists.slice(0, 8), ...artists.slice(0, 8)].map((artist, index) => <span key={`${artist.key}-${index}`}>{artist.name}<i>✦</i></span>)}</div></div>
       <div className="stats-grid">
         <Stat label="Tiempo total" value={`${number.format(sumMinutes(plays) / 60)} h`} hint={`${number.format(sumMinutes(plays) / 60 / 24)} días seguidos`} icon={<Clock3 />} />
         <Stat label="Reproducciones" value={number.format(plays.filter((p) => p.ms >= 30_000).length)} hint="De al menos 30 segundos" icon={<Headphones />} />
@@ -190,11 +319,12 @@ function Overview({ plays }: { plays: Play[] }) {
 }
 
 function Rankings({ plays }: { plays: Play[] }) {
+  const [limit, setLimit] = useState(15);
   const music = plays.filter((play) => play.contentType === "track");
   const artists = ranking(music, (p) => p.creator, (p) => p.creator, undefined, (p) => p.uri);
   const tracks = ranking(music, (p) => p.uri, (p) => p.item, (p) => p.creator);
   const albums = ranking(music, (p) => `${p.creator}\u001f${p.collection}`, (p) => p.collection, (p) => p.creator, (p) => p.uri);
-  return <><PageTitle eyebrow="Rankings" title="Tus imprescindibles" copy="Ordenados por tiempo real de escucha, no por simples aperturas." /><div className="three-column"><section className="panel"><h2>Artistas</h2><RankList rows={artists} limit={15} /></section><section className="panel"><h2>Canciones</h2><RankList rows={tracks} limit={15} /></section><section className="panel"><h2>Álbumes</h2><RankList rows={albums} limit={15} /></section></div></>;
+  return <><PageTitle eyebrow="Rankings" title="Tus imprescindibles" copy="Ordenados por tiempo real de escucha, no por simples aperturas." /><div className="ranking-toolbar"><span>Mostrar</span>{[10, 15, 25].map((value) => <button className={limit === value ? "active" : ""} key={value} onClick={() => setLimit(value)}>Top {value}</button>)}</div><div className="two-column podium-grid"><Podium rows={artists} title="Artistas que lideran tu historia" /><Podium rows={tracks} title="Canciones que más tiempo ocuparon" /></div><div className="three-column"><section className="panel"><h2>Artistas</h2><RankList rows={artists} limit={limit} /></section><section className="panel"><h2>Canciones</h2><RankList rows={tracks} limit={limit} /></section><section className="panel"><h2>Álbumes</h2><RankList rows={albums} limit={limit} /></section></div></>;
 }
 
 function HistoryPage({ plays }: { plays: Play[] }) {
@@ -263,6 +393,7 @@ function Dashboard({ result, onReset }: { result: ImportResult; onReset: () => v
     Podcasts: <Podcasts plays={filtered} />,
     Explorar: <Explorer plays={filtered} />,
     Calidad: <Quality result={result} />,
+    Información: <><PageTitle eyebrow="PULSE" title="Información y privacidad" copy="Cómo convertimos tu exportación en una historia musical sin quedarnos con tus datos." /><InformationContent /></>,
   };
   return (
     <div className="app-shell">
@@ -274,7 +405,7 @@ function Dashboard({ result, onReset }: { result: ImportResult; onReset: () => v
       <main className="dashboard">
         <header className="topbar"><div><span className="live-dot" /> Historial listo <small>{number.format(result.plays.length)} registros</small></div><label>Período<select value={year} onChange={(e) => setYear(e.target.value)}><option value="all">Todo el historial</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></header>
         <div className="mobile-nav">{pages.map(({ name, icon: Icon }) => <button aria-label={name} title={name} key={name} className={page === name ? "active" : ""} onClick={() => setPage(name)}><Icon /></button>)}</div>
-        <div className="content">{filtered.length ? content[page] : <div className="empty-state"><Music2 /><h2>No hay escuchas en este período</h2><p>Prueba con otro año.</p></div>}</div>
+        <div className="content">{filtered.length || page === "Información" || page === "Calidad" ? content[page] : <div className="empty-state"><Music2 /><h2>No hay escuchas en este período</h2><p>Prueba con otro año.</p></div>}</div>
       </main>
     </div>
   );
