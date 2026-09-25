@@ -76,18 +76,24 @@ function Stat({ label, value, hint, icon }: { label: string; value: string; hint
   );
 }
 
-function MiniBars({ data, labels = true }: { data: { label: string; value: number }[]; labels?: boolean }) {
+function MiniBars({ data, labels = true, valueKind = "duration" }: { data: { label: string; value: number }[]; labels?: boolean; valueKind?: "duration" | "artists" | "tracks" }) {
   const [unit, setUnit] = useState<"minutes" | "hours">("minutes");
   const [selected, setSelected] = useState<number | null>(null);
   const visible = data.slice(-18);
   const max = Math.max(...visible.map((point) => point.value), 1);
   const active = selected === null ? null : visible[selected];
-  const displayValue = (value: number) => unit === "hours" ? `${decimal.format(value / 60)} h` : `${number.format(value)} min`;
+  const displayValue = (value: number) => {
+    if (valueKind === "artists") return `${number.format(value)} ${value === 1 ? "artista" : "artistas"}`;
+    if (valueKind === "tracks") return `${number.format(value)} ${value === 1 ? "canción" : "canciones"}`;
+    return unit === "hours" ? `${decimal.format(value / 60)} h` : `${number.format(value)} min`;
+  };
   return (
     <div className="chart-shell">
-      <div className="chart-controls" aria-label="Unidad del gráfico">
-        <button className={unit === "minutes" ? "active" : ""} onClick={() => setUnit("minutes")}>Min</button>
-        <button className={unit === "hours" ? "active" : ""} onClick={() => setUnit("hours")}>Horas</button>
+      <div className={`chart-controls ${valueKind === "duration" ? "" : "count-mode"}`} aria-label={valueKind === "duration" ? "Unidad del gráfico" : "Detalle del gráfico"}>
+        {valueKind === "duration" && <>
+          <button className={unit === "minutes" ? "active" : ""} onClick={() => setUnit("minutes")}>Min</button>
+          <button className={unit === "hours" ? "active" : ""} onClick={() => setUnit("hours")}>Horas</button>
+        </>}
         <span>{active ? <><strong>{active.label}</strong> · {displayValue(active.value)}</> : "Pulsa una barra para ver el detalle"}</span>
       </div>
       <div className="mini-chart" role="group" aria-label="Gráfico interactivo de tiempo escuchado">
@@ -352,7 +358,7 @@ function Discovery({ plays }: { plays: Play[] }) {
   const artists = discoveries(music, "creator");
   const tracks = discoveries(music, "uri");
   const first = [...new Map(music.map((p) => [p.creator, p])).values()].slice(0, 20);
-  return <><PageTitle eyebrow="Descubrimiento" title="Cuándo creció tu universo musical" copy="La primera aparición registrada de cada artista y canción." /><div className="two-column"><section className="panel"><h2>Nuevos artistas por mes</h2><MiniBars data={artists} /></section><section className="panel"><h2>Nuevas canciones por mes</h2><MiniBars data={tracks} /></section></div><section className="panel"><h2>Tus primeros artistas registrados</h2><div className="artist-cloud">{first.map((play, i) => <span key={play.creator}><b>{i + 1}</b>{play.creator}<small>{play.day}</small></span>)}</div></section></>;
+  return <><PageTitle eyebrow="Descubrimiento" title="Cuándo creció tu universo musical" copy="La primera aparición registrada de cada artista y canción." /><div className="two-column"><section className="panel"><h2>Nuevos artistas por mes</h2><MiniBars data={artists} valueKind="artists" /></section><section className="panel"><h2>Nuevas canciones por mes</h2><MiniBars data={tracks} valueKind="tracks" /></section></div><section className="panel"><h2>Tus primeros artistas registrados</h2><div className="artist-cloud">{first.map((play, i) => <span key={play.creator}><b>{i + 1}</b>{play.creator}<small>{play.day}</small></span>)}</div></section></>;
 }
 
 function Podcasts({ plays }: { plays: Play[] }) {
